@@ -1,13 +1,64 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/types";
 
+function NavSearch({ mobile = false }: { mobile?: boolean }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const initial = pathname === "/" ? (params.get("q") ?? "") : "";
+  const [value, setValue] = useState(initial);
+  const [debounced, setDebounced] = useState(initial);
+
+  // Debounce 300ms ตาม Acceptance Criteria 10.3
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value.trim()), 300);
+    return () => clearTimeout(t);
+  }, [value]);
+
+  // พิมพ์ค้างไว้แล้วหยุด → ดัน query ขึ้น URL (เฉพาะอยู่หน้าฟีด)
+  useEffect(() => {
+    if (pathname !== "/") return;
+    const current = params.get("q") ?? "";
+    if (debounced === current) return;
+    const url = debounced ? `/?q=${encodeURIComponent(debounced)}` : "/";
+    const nav = async () => {
+      router.push(url);
+    };
+    void nav();
+  }, [debounced, pathname, params, router]);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const v = value.trim();
+    router.push(v ? `/?q=${encodeURIComponent(v)}` : "/");
+  };
+
+  return (
+    <form
+      onSubmit={submit}
+      className={mobile ? "relative w-full" : "relative hidden w-full max-w-md flex-1 md:block"}
+    >
+      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-stone-400">
+        🔍
+      </span>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="ค้นหาชื่อสินค้า…"
+        className="w-full rounded-full border border-stone-200 bg-stone-50 py-2 pl-11 pr-4 text-sm outline-none focus:border-purple-500 focus:bg-white focus:ring-2 focus:ring-purple-100"
+      />
+    </form>
+  );
+}
+
 export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -39,18 +90,21 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-purple-100 bg-white/90 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
-        <Link href="/" className="flex items-center gap-2">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
+        <Link href="/" className="flex shrink-0 items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-700 font-bold text-amber-300">
             UP
           </span>
-          <span className="text-lg font-bold text-purple-900">
+          <span className="hidden text-lg font-bold text-purple-900 lg:inline">
             UP 2 Hand
-            <span className="ml-2 hidden text-xs font-normal text-stone-500 sm:inline">
+            <span className="ml-2 hidden text-xs font-normal text-stone-500 xl:inline">
               ตลาดมือสอง ม.พะเยา
             </span>
           </span>
         </Link>
+        <Suspense>
+          <NavSearch key={pathname} />
+        </Suspense>
         <nav className="ml-auto flex items-center gap-2">
           {email && (
             <Link
@@ -95,6 +149,11 @@ export default function Navbar() {
             </Link>
           )}
         </nav>
+      </div>
+      <div className="mx-auto max-w-6xl px-4 pb-2 md:hidden">
+        <Suspense>
+          <NavSearch key={`${pathname}-m`} mobile />
+        </Suspense>
       </div>
     </header>
   );

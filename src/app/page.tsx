@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import FeedCard from "@/components/FeedCard";
-import SearchBar from "@/components/SearchBar";
 import { MOCK_ITEMS } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured, type Item } from "@/lib/types";
 
-export default function Home() {
-  const [q, setQ] = useState("");
-  const [debounced, setDebounced] = useState("");
+function HomeInner() {
+  const searchParams = useSearchParams();
+  const paramQ = searchParams.get("q") ?? "";
+  // ซิงก์ช่องค้นหาใน Navbar (?q=) เข้ากับฟีด — render-phase pattern
+  const [q, setQ] = useState(paramQ);
+  const [prevParam, setPrevParam] = useState(paramQ);
+  if (paramQ !== prevParam) {
+    setPrevParam(paramQ);
+    setQ(paramQ);
+  }
+  const [debounced, setDebounced] = useState(paramQ);
   const [remoteItems, setRemoteItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
   const usingMock = !isSupabaseConfigured;
@@ -63,11 +71,8 @@ export default function Home() {
           ตลาดมือสอง ม.พะเยา 🏕️
         </h1>
         <p className="mt-1 text-sm text-purple-100">
-          เปิดดูได้เลยไม่ต้อง login · ลงขาย แชท รีวิว ต้องใช้ @up.ac.th
+          เปิดดูได้เลยไม่ต้อง login · พิมพ์ค้นหาที่แถบบนได้ทุกหน้า · ลงขาย แชท รีวิว ต้องใช้ @up.ac.th
         </p>
-        <div className="mt-4 max-w-xl">
-          <SearchBar value={q} onChange={setQ} />
-        </div>
       </div>
 
       {usingMock && (
@@ -79,7 +84,7 @@ export default function Home() {
 
       <div className="mt-6 flex items-center justify-between">
         <h2 className="font-semibold">
-          สินค้าล่าสุด {loading ? "…" : `(${count})`}
+          {debounced ? `ผลค้นหา "${debounced}"` : "สินค้าล่าสุด"} {loading ? "…" : `(${count})`}
         </h2>
         <span className="text-xs text-stone-500">เรียงใหม่ → เก่า · ไม่ปิดกั้น</span>
       </div>
@@ -96,5 +101,13 @@ export default function Home() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense>
+      <HomeInner />
+    </Suspense>
   );
 }
