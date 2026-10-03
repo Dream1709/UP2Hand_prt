@@ -41,7 +41,7 @@ function NavSearch({ mobile = false }: { mobile?: boolean }) {
   return (
     <form
       onSubmit={submit}
-      className={mobile ? "relative w-full" : "relative hidden w-full max-w-md flex-1 md:block"}
+      className={mobile ? "relative w-full" : "relative hidden w-full flex-1 px-6 md:block"}
     >
       <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-stone-400">
         🔍
@@ -95,11 +95,8 @@ export default function Navbar() {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-700 font-bold text-amber-300">
             UP
           </span>
-          <span className="hidden text-lg font-bold text-purple-900 lg:inline">
+          <span className="text-lg font-bold text-purple-900">
             UP 2 Hand
-            <span className="ml-2 hidden text-xs font-normal text-stone-500 xl:inline">
-              ตลาดมือสอง ม.พะเยา
-            </span>
           </span>
         </Link>
         <Suspense>
