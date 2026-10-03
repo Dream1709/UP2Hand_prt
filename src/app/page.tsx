@@ -1,42 +1,15 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import FeedCard from "@/components/FeedCard";
 import { MOCK_ITEMS } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured, type Item } from "@/lib/types";
 
-function HomeInner() {
-  const searchParams = useSearchParams();
-  const paramQ = searchParams.get("q") ?? "";
-  // ซิงก์ช่องค้นหาใน Navbar (?q=) เข้ากับฟีด — render-phase pattern
-  const [q, setQ] = useState(paramQ);
-  const [prevParam, setPrevParam] = useState(paramQ);
-  if (paramQ !== prevParam) {
-    setPrevParam(paramQ);
-    setQ(paramQ);
-  }
-  const [debounced, setDebounced] = useState(paramQ);
-  const [remoteItems, setRemoteItems] = useState<Item[]>([]);
+export default function Home() {
+  const [items, setItems] = useState<Item[]>(MOCK_ITEMS);
   const [loading, setLoading] = useState(false);
   const usingMock = !isSupabaseConfigured;
-
-  const mockFiltered = useMemo(
-    () =>
-      MOCK_ITEMS.filter((i) =>
-        debounced ? i.title.includes(debounced) : true,
-      ),
-    [debounced],
-  );
-
-  const items = usingMock ? mockFiltered : remoteItems;
-
-  // Debounce 300ms ตาม Acceptance Criteria 10.3
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(q.trim()), 300);
-    return () => clearTimeout(t);
-  }, [q]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -44,25 +17,21 @@ function HomeInner() {
     const fetchItems = async () => {
       setLoading(true);
       const supabase = createClient();
-      let query = supabase
+      const { data } = await supabase
         .from("item")
         .select("*, member:member_id(member_id,name,email,avatar_url,role,is_banned,created_at), images:item_image(*)")
         .eq("status", "available")
         .order("created_at", { ascending: false })
         .limit(60);
-      if (debounced) query = query.ilike("title", `%${debounced}%`);
-      const { data } = await query;
       if (cancelled) return;
-      setRemoteItems(((data ?? []) as unknown as Item[]).filter(Boolean));
+      setItems(((data ?? []) as unknown as Item[]).filter(Boolean));
       setLoading(false);
     };
     fetchItems();
     return () => {
       cancelled = true;
     };
-  }, [debounced]);
-
-  const count = items.length;
+  }, []);
 
   return (
     <div className="pt-6">
@@ -84,14 +53,14 @@ function HomeInner() {
 
       <div className="mt-6 flex items-center justify-between">
         <h2 className="font-semibold">
-          {debounced ? `ผลค้นหา "${debounced}"` : "สินค้าล่าสุด"} {loading ? "…" : `(${count})`}
+          สินค้าล่าสุด {loading ? "…" : `(${items.length})`}
         </h2>
         <span className="text-xs text-stone-500">เรียงใหม่ → เก่า · ไม่ปิดกั้น</span>
       </div>
 
       {items.length === 0 && !loading ? (
         <div className="mt-6 rounded-2xl border bg-white p-10 text-center text-stone-500">
-          ไม่พบสินค้าที่คุณกำลังค้นหา
+          ยังไม่มีสินค้า — เป็นคนแรกที่ลงขายเลย!
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
@@ -101,13 +70,5 @@ function HomeInner() {
         </div>
       )}
     </div>
-  );
-}
-
-export default function Home() {
-  return (
-    <Suspense>
-      <HomeInner />
-    </Suspense>
   );
 }

@@ -18,7 +18,7 @@ function NavSearch({ mobile = false }: { mobile?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const initial = pathname === "/" ? (params.get("q") ?? "") : "";
+  const initial = pathname === "/" || pathname === "/search" ? (params.get("q") ?? "") : "";
   const [value, setValue] = useState(initial);
   const [debounced, setDebounced] = useState(initial);
   const [suggests, setSuggests] = useState<Suggestion[]>([]);
@@ -83,7 +83,7 @@ function NavSearch({ mobile = false }: { mobile?: boolean }) {
   const goSearch = () => {
     const v = value.trim();
     setOpen(false);
-    router.push(v ? `/?q=${encodeURIComponent(v)}` : "/");
+    router.push(v ? `/search?q=${encodeURIComponent(v)}` : "/");
   };
 
   const submit = (e: React.FormEvent) => {
