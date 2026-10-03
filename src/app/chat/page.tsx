@@ -47,19 +47,20 @@ export default function ChatInbox() {
         list.map(async (c) => {
           const { data: m } = await supabase
             .from("message")
-            .select("message_text, sender_id, created_at")
+            .select("message_text, message_type, sender_id, created_at")
             .eq("conversation_id", c.conversation_id)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
           const last = m as unknown as {
             message_text: string;
+            message_type?: string;
             sender_id: string;
             created_at: string;
           } | null;
           return {
             ...c,
-            last_text: last?.message_text,
+            last_text: last ? (last.message_type === "image" ? "📷 รูปภาพ" : last.message_text) : undefined,
             last_sender: last?.sender_id,
             last_at: last?.created_at,
             unread: isUnread(c.conversation_id, last?.created_at, last?.sender_id, user.id),
