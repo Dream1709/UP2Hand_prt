@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured, timeAgo } from "@/lib/types";
+import { isUnread } from "@/lib/unread";
 
 interface Conv {
   conversation_id: string;
@@ -13,6 +14,9 @@ interface Conv {
   member_id: string;
   item?: { title: string; price: number };
   last_text?: string;
+  last_sender?: string;
+  last_at?: string;
+  unread?: boolean;
 }
 
 export default function ChatInbox() {
@@ -43,12 +47,23 @@ export default function ChatInbox() {
         list.map(async (c) => {
           const { data: m } = await supabase
             .from("message")
-            .select("message_text")
+            .select("message_text, sender_id, created_at")
             .eq("conversation_id", c.conversation_id)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          return { ...c, last_text: m?.message_text };
+          const last = m as unknown as {
+            message_text: string;
+            sender_id: string;
+            created_at: string;
+          } | null;
+          return {
+            ...c,
+            last_text: last?.message_text,
+            last_sender: last?.sender_id,
+            last_at: last?.created_at,
+            unread: isUnread(c.conversation_id, last?.created_at, last?.sender_id, user.id),
+          };
         }),
       );
       setConvs(withLast);
@@ -75,11 +90,18 @@ export default function ChatInbox() {
             <Link
               key={c.conversation_id}
               href={`/chat/${c.conversation_id}`}
-              className="block rounded-2xl border bg-white p-4 hover:shadow"
+              className={`block rounded-2xl border bg-white p-4 hover:shadow ${
+                c.unread ? "border-purple-300 bg-purple-50/50" : ""
+              }`}
             >
-              <p className="font-semibold">{c.item?.title ?? "สินค้า"}</p>
-              <p className="truncate text-sm text-stone-500">{c.last_text ?? "เริ่มบทสนทนา"}</p>
-              <p className="mt-1 text-xs text-stone-400">{timeAgo(c.created_at)}</p>
+              <p className="flex items-center gap-2 font-semibold">
+                {c.unread && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />}
+                <span className="truncate">{c.item?.title ?? "สินค้า"}</span>
+              </p>
+              <p className={`truncate text-sm ${c.unread ? "font-semibold text-stone-700" : "text-stone-500"}`}>
+                {c.last_text ?? "เริ่มบทสนทนา"}
+              </p>
+              <p className="mt-1 text-xs text-stone-400">{timeAgo(c.last_at ?? c.created_at)}</p>
             </Link>
           ))}
         </div>

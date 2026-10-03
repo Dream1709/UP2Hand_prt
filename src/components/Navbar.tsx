@@ -6,6 +6,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { MOCK_ITEMS } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/types";
+import { getReadTime, isUnread, setReadTime } from "@/lib/unread";
 
 interface Suggestion {
   item_id: string;
@@ -199,6 +200,13 @@ export default function Navbar() {
   const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const [prevEmail, setPrevEmail] = useState<string | null>(null);
+  // เปลี่ยนบัญชี / logout → รีเซ็ตตัวเลข (render-phase pattern)
+  if (email !== prevEmail) {
+    setPrevEmail(email);
+    setUnread(0);
+  }
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -219,6 +227,77 @@ export default function Navbar() {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // นับห้องที่มีข้อความใหม่ → โชว์ badge บนปุ่มแชท
+  useEffect(() => {
+    if (!isSupabaseConfigured || !email) return;
+    const supabase = createClient();
+
+    const refresh = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: convs } = await supabase
+        .from("conversation")
+        .select("conversation_id")
+        .limit(50);
+      const ids = ((convs ?? []) as { conversation_id: string }[]).map(
+        (c) => c.conversation_id,
+      );
+      if (ids.length === 0) {
+        setUnread(0);
+        return;
+      }
+      // ข้อความล่าสุดของแต่ละห้อง (query เดียวแล้วจับคู่ฝั่ง client)
+      const { data: recent } = await supabase
+        .from("message")
+        .select("conversation_id, sender_id, created_at")
+        .in("conversation_id", ids)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      const latest = new Map<string, { sender_id: string; created_at: string }>();
+      for (const m of (recent ?? []) as {
+        conversation_id: string;
+        sender_id: string;
+        created_at: string;
+      }[]) {
+        if (!latest.has(m.conversation_id)) latest.set(m.conversation_id, m);
+      }
+      let count = 0;
+      for (const cid of ids) {
+        const last = latest.get(cid);
+        if (!last) continue;
+        // เปิดครั้งแรก: ตั้งเวลาอ่าน = ข้อความล่าสุด (ไม่นับย้อนหลัง)
+        if (getReadTime(cid) === null) {
+          setReadTime(cid, last.created_at);
+          continue;
+        }
+        if (isUnread(cid, last.created_at, last.sender_id, user.id)) count++;
+      }
+      setUnread(count);
+    };
+
+    refresh();
+    // ข้อความใหม่เข้า → รีเฟรชตัวเลขทันที + กันพลาดด้วย polling 20 วิ
+    const channel = supabase
+      .channel("unread-global")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "message" },
+        () => {
+          void refresh();
+        },
+      )
+      .subscribe();
+    const timer = setInterval(() => {
+      void refresh();
+    }, 20000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(timer);
+    };
+  }, [email]);
 
   const logout = async () => {
     const supabase = createClient();
@@ -244,9 +323,14 @@ export default function Navbar() {
           {email && (
             <Link
               href="/chat"
-              className="rounded-full px-4 py-2 text-sm hover:bg-stone-100"
+              className="relative rounded-full px-4 py-2 text-sm hover:bg-stone-100"
             >
               💬 แชท
+              {unread > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
             </Link>
           )}
           <Link

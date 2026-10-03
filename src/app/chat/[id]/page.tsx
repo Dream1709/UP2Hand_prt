@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/types";
+import { setReadTime } from "@/lib/unread";
 
 interface Msg {
   message_id: string;
@@ -19,6 +20,7 @@ export default function ChatRoom({ params }: { params: Promise<{ id: string }> }
   const [text, setText] = useState("");
   const [myId, setMyId] = useState<string | null>(null);
   const [itemTitle, setItemTitle] = useState("");
+  const [otherName, setOtherName] = useState("");
   const [status, setStatus] = useState<"ok" | "reconnect">("ok");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -40,10 +42,22 @@ export default function ChatRoom({ params }: { params: Promise<{ id: string }> }
 
       const { data: conv } = await supabase
         .from("conversation")
-        .select("conversation_id, item:item_id(title)")
+        .select(
+          "conversation_id, member_id, buyer:member_id(name), item:item_id(title, member_id, seller:member_id(name))",
+        )
         .eq("conversation_id", id)
         .single();
-      if (conv) setItemTitle((conv.item as unknown as { title: string })?.title ?? "");
+      const c = conv as unknown as {
+        member_id: string;
+        buyer?: { name: string };
+        item?: { title: string; member_id: string; seller?: { name: string } };
+      } | null;
+      if (c) {
+        setItemTitle(c.item?.title ?? "");
+        // อีกฝั่งคือใคร: ถ้าฉันเป็น buyer → คู่สนทนาคือ seller, ไม่งั้นคือ buyer
+        const other = user.id === c.member_id ? c.item?.seller?.name : c.buyer?.name;
+        setOtherName(other ?? "");
+      }
 
       const { data: history } = await supabase
         .from("message")
@@ -52,6 +66,8 @@ export default function ChatRoom({ params }: { params: Promise<{ id: string }> }
         .order("created_at", { ascending: true })
         .limit(200);
       setMsgs((history ?? []) as Msg[]);
+      // เปิดห้อง = อ่านถึงปัจจุบัน → เคลียร์ badge
+      setReadTime(id);
 
       // Realtime: รับข้อความใหม่ทันทีโดยไม่ต้อง refresh (KPI ≤1s)
       channel = supabase
@@ -59,7 +75,12 @@ export default function ChatRoom({ params }: { params: Promise<{ id: string }> }
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "message", filter: `conversation_id=eq.${id}` },
-          (payload) => setMsgs((prev) => [...prev, payload.new as Msg]),
+          (payload) => {
+            const m = payload.new as Msg;
+            setMsgs((prev) => [...prev, m]);
+            // กำลังดูห้องอยู่ → ข้อความใหม่ถือว่าอ่านแล้วทันที
+            if (m.sender_id !== user.id) setReadTime(id, m.created_at);
+          },
         )
         .subscribe((s) => {
           if (s === "SUBSCRIBED") setStatus("ok");
@@ -93,10 +114,16 @@ export default function ChatRoom({ params }: { params: Promise<{ id: string }> }
 
   return (
     <div className="mx-auto mt-6 flex h-[70vh] max-w-2xl flex-col rounded-3xl border bg-white">
-      <div className="border-b p-4">
-        <p className="font-bold">{itemTitle || "ห้องแชท"}</p>
+      <div className="flex items-center gap-3 border-b p-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-100 text-lg font-bold text-purple-700">
+          {otherName ? otherName.slice(0, 1).toUpperCase() : "💬"}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate font-bold">{otherName || "ห้องแชท"}</p>
+          <p className="truncate text-xs text-stone-500">{itemTitle}</p>
+        </div>
         {status === "reconnect" && (
-          <p className="text-xs text-amber-600">กำลังเชื่อมต่อระบบแชทใหม่อัตโนมัติ…</p>
+          <p className="ml-auto shrink-0 text-xs text-amber-600">กำลังเชื่อมต่อใหม่…</p>
         )}
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto p-4">
