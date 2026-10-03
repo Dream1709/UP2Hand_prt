@@ -2,9 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { MOCK_ITEMS } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/types";
+
+interface Suggestion {
+  item_id: string;
+  title: string;
+}
+
+const SUGGEST_LIMIT = 6;
 
 function NavSearch({ mobile = false }: { mobile?: boolean }) {
   const router = useRouter();
@@ -13,46 +21,176 @@ function NavSearch({ mobile = false }: { mobile?: boolean }) {
   const initial = pathname === "/" ? (params.get("q") ?? "") : "";
   const [value, setValue] = useState(initial);
   const [debounced, setDebounced] = useState(initial);
+  const [suggests, setSuggests] = useState<Suggestion[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
-  // Debounce 300ms ตาม Acceptance Criteria 10.3
+  // Debounce 300ms แล้วดึงชื่อที่ตรงมาโชว์ (ไม่เปลี่ยนหน้า)
   useEffect(() => {
     const t = setTimeout(() => setDebounced(value.trim()), 300);
     return () => clearTimeout(t);
   }, [value]);
 
-  // พิมพ์ค้างไว้แล้วหยุด → ดัน query ขึ้น URL (เฉพาะอยู่หน้าฟีด)
   useEffect(() => {
-    if (pathname !== "/") return;
-    const current = params.get("q") ?? "";
-    if (debounced === current) return;
-    const url = debounced ? `/?q=${encodeURIComponent(debounced)}` : "/";
-    const nav = async () => {
-      router.push(url);
+    if (!debounced) return;
+    let cancelled = false;
+    const run = async () => {
+      setSearching(true);
+      setOpen(true);
+      if (!isSupabaseConfigured) {
+        const local = MOCK_ITEMS.filter((i) =>
+          i.title.toLowerCase().includes(debounced.toLowerCase()),
+        )
+          .slice(0, SUGGEST_LIMIT)
+          .map((i) => ({ item_id: i.item_id, title: i.title }));
+        if (!cancelled) {
+          setSuggests(local);
+          setSearching(false);
+        }
+        return;
+      }
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("item")
+        .select("item_id,title")
+        .eq("status", "available")
+        .ilike("title", `%${debounced}%`)
+        .order("created_at", { ascending: false })
+        .limit(SUGGEST_LIMIT);
+      if (cancelled) return;
+      setSuggests(((data ?? []) as unknown as Suggestion[]));
+      setSearching(false);
     };
-    void nav();
-  }, [debounced, pathname, params, router]);
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [debounced]);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // คลิกข้างนอก → ปิด dropdown
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  const goSearch = () => {
     const v = value.trim();
+    setOpen(false);
     router.push(v ? `/?q=${encodeURIComponent(v)}` : "/");
   };
 
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // ถ้าไฮไลต์แถวอยู่ → ไปสินค้านั้น, ไม่งั้นค้นหาทั้งหมด
+    if (open && highlight >= 0 && visibleSuggests[highlight]) {
+      pick(visibleSuggests[highlight]);
+      return;
+    }
+    goSearch();
+  };
+
+  const pick = (s: Suggestion) => {
+    setOpen(false);
+    router.push(`/items/${s.item_id}`);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      setOpen(false);
+      return;
+    }
+    if (!open || visibleSuggests.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight((h) => (h + 1) % visibleSuggests.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => (h - 1 + visibleSuggests.length) % visibleSuggests.length);
+    }
+  };
+
+  // ทำตัวหนาตรงคำที่ตรงกับที่พิมพ์
+  const boldMatch = (title: string) => {
+    const i = title.toLowerCase().indexOf(debounced.toLowerCase());
+    if (!debounced || i < 0) return title;
+    return (
+      <>
+        {title.slice(0, i)}
+        <b className="text-purple-800">{title.slice(i, i + debounced.length)}</b>
+        {title.slice(i + debounced.length)}
+      </>
+    );
+  };
+
+  const showPanel = open && debounced.length > 0;
+  const visibleSuggests = debounced ? suggests : [];
+
   return (
-    <form
-      onSubmit={submit}
+    <div
+      ref={wrapRef}
       className={mobile ? "relative w-full" : "relative hidden w-full flex-1 px-6 md:block"}
     >
-      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-stone-400">
-        🔍
-      </span>
-      <input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="ค้นหาชื่อสินค้า…"
-        className="w-full rounded-full border border-stone-200 bg-stone-50 py-2 pl-11 pr-4 text-sm outline-none focus:border-purple-500 focus:bg-white focus:ring-2 focus:ring-purple-100"
-      />
-    </form>
+      <form
+        onSubmit={submit}
+        className="flex w-full items-center gap-2 rounded-full border border-stone-200 bg-stone-50 py-1 pl-4 pr-1 outline-none transition focus-within:border-purple-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-purple-100"
+      >
+        <span className="shrink-0 text-stone-400">🔍</span>
+        <input
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setHighlight(-1);
+          }}
+          onFocus={() => debounced && setOpen(true)}
+          onKeyDown={onKeyDown}
+          placeholder="ค้นหาชื่อสินค้า…"
+          className="w-full bg-transparent py-1.5 text-sm outline-none"
+        />
+        <button
+          type="submit"
+          className="shrink-0 rounded-full bg-purple-700 px-5 py-1.5 text-sm font-semibold text-white hover:bg-purple-800"
+        >
+          ค้นหา
+        </button>
+      </form>
+
+      {showPanel && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border bg-white shadow-xl">
+          {searching ? (
+            <p className="px-4 py-3 text-sm text-stone-400">กำลังค้นหา…</p>
+          ) : visibleSuggests.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-stone-500">
+              ไม่พบสินค้าที่ตรง ลองกดค้นหาเพื่อดูรายการใกล้เคียง
+            </p>
+          ) : (
+            <ul>
+              {visibleSuggests.map((s, i) => (
+                <li key={s.item_id}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pick(s)}
+                    onMouseEnter={() => setHighlight(i)}
+                    className={`block w-full truncate px-4 py-2.5 text-left text-sm hover:bg-purple-50 ${
+                      highlight === i ? "bg-purple-50" : ""
+                    }`}
+                  >
+                    {boldMatch(s.title)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
