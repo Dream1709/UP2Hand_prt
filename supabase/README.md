@@ -15,7 +15,8 @@ Supabase Dashboard → SQL Editor → รันตามลำดับ:
 2. `supabase/storage.sql`
 3. `supabase/realtime.sql` — เปิด Realtime ให้ตาราง message (แชท Phase B)
 4. `supabase/chat-upgrade.sql` — เวลา/อ่านแล้ว/ส่งรูป (message_type, conversation_read, bucket chat-images)
-5. (ทางเลือก) `supabase/seed.sql` — ข้อมูลตัวอย่าง
+5. `supabase/avatars.sql` — bucket avatars (รูปโปรไฟล์)
+6. (ทางเลือก) `supabase/seed.sql` — ข้อมูลตัวอย่าง
 
 ## 3. Google OAuth (บังคับ @up.ac.th ฝั่งโค้ด)
 1. Google Cloud Console → APIs & Services → Credentials → Create OAuth client (Web)

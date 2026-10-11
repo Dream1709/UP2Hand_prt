@@ -12,7 +12,9 @@ interface Conv {
   created_at: string;
   item_id: string;
   member_id: string;
-  item?: { title: string; price: number };
+  buyer?: { name: string };
+  item?: { title: string; price: number; seller?: { name: string } };
+  other_name?: string;
   last_text?: string;
   last_sender?: string;
   last_at?: string;
@@ -38,13 +40,17 @@ export default function ChatInbox() {
       // ห้องที่ฉันเป็น buyer หรือเป็น seller (ผ่าน item.member_id)
       const { data } = await supabase
         .from("conversation")
-        .select("conversation_id, created_at, item_id, member_id, item:item_id(title,price)")
+        .select(
+          "conversation_id, created_at, item_id, member_id, buyer:member_id(name), item:item_id(title,price,seller:member_id(name))",
+        )
         .order("created_at", { ascending: false })
         .limit(50);
       const list = (data ?? []) as unknown as Conv[];
       // ดึงข้อความล่าสุดของแต่ละห้อง
       const withLast = await Promise.all(
         list.map(async (c) => {
+          // คู่สนทนา: ถ้าฉันเป็น buyer → อีกฝั่งคือ seller, ถ้าไม่ใช่ → อีกฝั่งคือ buyer
+          const other = user.id === c.member_id ? c.item?.seller?.name : c.buyer?.name;
           const { data: m } = await supabase
             .from("message")
             .select("message_text, message_type, sender_id, created_at")
@@ -60,6 +66,7 @@ export default function ChatInbox() {
           } | null;
           return {
             ...c,
+            other_name: other ?? "",
             last_text: last ? (last.message_type === "image" ? "📷 รูปภาพ" : last.message_text) : undefined,
             last_sender: last?.sender_id,
             last_at: last?.created_at,
@@ -95,14 +102,22 @@ export default function ChatInbox() {
                 c.unread ? "border-purple-300 bg-purple-50/50" : ""
               }`}
             >
-              <p className="flex items-center gap-2 font-semibold">
-                {c.unread && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />}
-                <span className="truncate">{c.item?.title ?? "สินค้า"}</span>
-              </p>
-              <p className={`truncate text-sm ${c.unread ? "font-semibold text-stone-700" : "text-stone-500"}`}>
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-100 text-base font-bold text-purple-700">
+                  {c.other_name ? c.other_name.slice(0, 1).toUpperCase() : "💬"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 font-semibold">
+                    {c.unread && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />}
+                    <span className="truncate">{c.other_name || "คู่สนทนา"}</span>
+                  </p>
+                  <p className="truncate text-xs text-stone-500">{c.item?.title ?? "สินค้า"}</p>
+                </div>
+                <span className="shrink-0 text-xs text-stone-400">{timeAgo(c.last_at ?? c.created_at)}</span>
+              </div>
+              <p className={`mt-2 truncate text-sm ${c.unread ? "font-semibold text-stone-700" : "text-stone-500"}`}>
                 {c.last_text ?? "เริ่มบทสนทนา"}
               </p>
-              <p className="mt-1 text-xs text-stone-400">{timeAgo(c.last_at ?? c.created_at)}</p>
             </Link>
           ))}
         </div>

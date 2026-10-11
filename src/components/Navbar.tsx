@@ -199,6 +199,7 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
+  const [myId, setMyId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [unread, setUnread] = useState(0);
   const [prevEmail, setPrevEmail] = useState<string | null>(null);
@@ -213,6 +214,7 @@ export default function Navbar() {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data }) => {
       setEmail(data.user?.email ?? null);
+      setMyId(data.user?.id ?? null);
       if (data.user) {
         const { data: m } = await supabase
           .from("member")
@@ -224,6 +226,7 @@ export default function Navbar() {
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setEmail(session?.user?.email ?? null);
+      setMyId(session?.user?.id ?? null);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -349,9 +352,19 @@ export default function Navbar() {
           )}
           {email ? (
             <>
-              <span className="hidden max-w-44 truncate text-sm text-stone-600 md:inline">
-                {email}
-              </span>
+              {myId ? (
+                <Link
+                  href={`/profile/${myId}`}
+                  title="ดูโปรไฟล์และสินค้าของฉัน"
+                  className="hidden max-w-44 truncate text-sm font-semibold text-purple-800 hover:underline md:inline"
+                >
+                  {email}
+                </Link>
+              ) : (
+                <span className="hidden max-w-44 truncate text-sm text-stone-600 md:inline">
+                  {email}
+                </span>
+              )}
               <button
                 onClick={logout}
                 className="rounded-full border px-4 py-2 text-sm hover:bg-stone-100"
