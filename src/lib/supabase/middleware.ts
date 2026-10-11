@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  // ถ้ายังไม่ตั้ง env (dev เปล่า) ให้ผ่านเลย — หน้าจะใช้ mock data
+  // ถ้ายังไม่ตั้ง env ให้ผ่านเลย (หน้าต่าง ๆ จะโชว์ข้อความให้ตั้งค่า)
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY

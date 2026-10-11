@@ -3,7 +3,6 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import ChatButton from "@/components/ChatButton";
-import { MOCK_ITEMS } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice, isSupabaseConfigured, timeAgo, type Item } from "@/lib/types";
 
@@ -17,7 +16,6 @@ export default function ItemDetail({ params }: { params: Promise<{ id: string }>
   useEffect(() => {
     const load = async () => {
       if (!isSupabaseConfigured) {
-        setItem(MOCK_ITEMS.find((i) => i.item_id === id) ?? MOCK_ITEMS[0]);
         setLoading(false);
         return;
       }

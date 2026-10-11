@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import FeedCard from "@/components/FeedCard";
-import { MOCK_ITEMS } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured, type Item } from "@/lib/types";
 
@@ -26,25 +25,14 @@ function SearchInner() {
   const by = validBy(searchParams.get("by"));
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
-  const usingMock = !isSupabaseConfigured;
+  const noBackend = !isSupabaseConfigured;
 
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
       setLoading(true);
       if (!isSupabaseConfigured) {
-        const needle = q.toLowerCase();
-        const local = !q
-          ? []
-          : MOCK_ITEMS.filter((i) => {
-              const inTitle = i.title.toLowerCase().includes(needle);
-              const inDesc = (i.description ?? "").toLowerCase().includes(needle);
-              return by === "title" ? inTitle : by === "desc" ? inDesc : inTitle || inDesc;
-            });
-        if (!cancelled) {
-          setItems(local);
-          setLoading(false);
-        }
+        setLoading(false);
         return;
       }
       const supabase = createClient();
@@ -104,9 +92,9 @@ function SearchInner() {
         </div>
       </div>
 
-      {usingMock && (
-        <p className="mt-4 rounded-xl bg-amber-50 px-4 py-2 text-xs text-amber-800">
-          โหมดตัวอย่าง (ยังไม่ตั้งค่า Supabase)
+      {noBackend && (
+        <p className="mt-4 rounded-xl bg-red-50 px-4 py-2 text-xs text-red-700">
+          ยังไม่ตั้งค่า Supabase — สร้าง .env.local จาก .env.example ตาม supabase/README.md แล้ว restart
         </p>
       )}
 

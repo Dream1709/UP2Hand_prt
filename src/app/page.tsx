@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import FeedCard from "@/components/FeedCard";
-import { MOCK_ITEMS } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured, type Item } from "@/lib/types";
 
 export default function Home() {
-  const [items, setItems] = useState<Item[]>(MOCK_ITEMS);
+  const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
-  const usingMock = !isSupabaseConfigured;
+  const noBackend = !isSupabaseConfigured;
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -44,10 +43,9 @@ export default function Home() {
         </p>
       </div>
 
-      {usingMock && (
-        <p className="mt-4 rounded-xl bg-amber-50 px-4 py-2 text-xs text-amber-800">
-          โหมดตัวอย่าง (ยังไม่ตั้งค่า Supabase) — ตั้งค่าตาม supabase/README.md แล้ว
-          refresh เพื่อดูข้อมูลจริง · สร้าง .env.local จาก .env.example
+      {noBackend && (
+        <p className="mt-4 rounded-xl bg-red-50 px-4 py-2 text-xs text-red-700">
+          ยังไม่ตั้งค่า Supabase — สร้าง .env.local จาก .env.example ตาม supabase/README.md แล้ว restart
         </p>
       )}
 

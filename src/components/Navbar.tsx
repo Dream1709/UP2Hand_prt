@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { MOCK_ITEMS } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/types";
 import { getReadTime, isUnread, setReadTime } from "@/lib/unread";
@@ -41,13 +40,8 @@ function NavSearch({ mobile = false }: { mobile?: boolean }) {
       setSearching(true);
       setOpen(true);
       if (!isSupabaseConfigured) {
-        const local = MOCK_ITEMS.filter((i) =>
-          i.title.toLowerCase().includes(debounced.toLowerCase()),
-        )
-          .slice(0, SUGGEST_LIMIT)
-          .map((i) => ({ item_id: i.item_id, title: i.title }));
         if (!cancelled) {
-          setSuggests(local);
+          setSuggests([]);
           setSearching(false);
         }
         return;
@@ -168,7 +162,9 @@ function NavSearch({ mobile = false }: { mobile?: boolean }) {
             <p className="px-4 py-3 text-sm text-stone-400">กำลังค้นหา…</p>
           ) : visibleSuggests.length === 0 ? (
             <p className="px-4 py-3 text-sm text-stone-500">
-              ไม่พบสินค้าที่ตรง ลองกดค้นหาเพื่อดูรายการใกล้เคียง
+              {!isSupabaseConfigured
+                ? "ตั้งค่า Supabase ก่อนค้นหา (.env.local)"
+                : "ไม่พบสินค้าที่ตรง ลองกดค้นหาเพื่อดูรายการใกล้เคียง"}
             </p>
           ) : (
             <ul>
