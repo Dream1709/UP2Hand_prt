@@ -306,6 +306,7 @@ export default function Navbar() {
   };
 
   return (
+    <>
     <header className="sticky top-0 z-40 border-b border-purple-100 bg-white/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
         <Link href="/" className="flex shrink-0 items-center gap-2">
@@ -384,6 +385,7 @@ export default function Navbar() {
           <NavSearch key={`${pathname}-m`} mobile />
         </Suspense>
       </div>
+    </header>
 
       {confirmLogout && (
         <div
@@ -424,6 +426,6 @@ export default function Navbar() {
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 }
