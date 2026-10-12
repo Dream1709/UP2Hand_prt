@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import FeedCard from "@/components/FeedCard";
+import Pager from "@/components/Pager";
 import { createClient } from "@/lib/supabase/client";
-import { isSupabaseConfigured, type Item } from "@/lib/types";
+import { PAGE_SIZE, isSupabaseConfigured, parsePage, type Item } from "@/lib/types";
 
 type ByFilter = "all" | "title" | "desc";
 
@@ -23,9 +24,12 @@ function SearchInner() {
   const searchParams = useSearchParams();
   const q = (searchParams.get("q") ?? "").trim();
   const by = validBy(searchParams.get("by"));
+  const page = parsePage(searchParams.get("page"));
   const [items, setItems] = useState<Item[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const noBackend = !isSupabaseConfigured;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   useEffect(() => {
     let cancelled = false;
@@ -36,28 +40,30 @@ function SearchInner() {
         return;
       }
       const supabase = createClient();
+      const from = (page - 1) * PAGE_SIZE;
       let query = supabase
         .from("item")
-        .select("*, member:member_id(member_id,name,email,avatar_url,role,is_banned,created_at), images:item_image(*)")
+        .select("*, member:member_id(member_id,name,email,avatar_url,role,is_banned,created_at), images:item_image(*)", { count: "exact" })
         .eq("status", "available")
         .order("created_at", { ascending: false })
-        .limit(60);
+        .range(from, from + PAGE_SIZE - 1);
       if (q) {
         const pattern = `%${q}%`;
         if (by === "title") query = query.ilike("title", pattern);
         else if (by === "desc") query = query.ilike("description", pattern);
         else query = query.or(`title.ilike.${pattern},description.ilike.${pattern}`);
       }
-      const { data } = await query;
+      const { data, count } = await query;
       if (cancelled) return;
       setItems(((data ?? []) as unknown as Item[]).filter(Boolean));
+      setTotal(count ?? 0);
       setLoading(false);
     };
     run();
     return () => {
       cancelled = true;
     };
-  }, [q, by]);
+  }, [q, by, page]);
 
   const setBy = (next: ByFilter) => {
     const p = new URLSearchParams();
@@ -66,11 +72,20 @@ function SearchInner() {
     router.push(`/search?${p.toString()}`);
   };
 
+  const go = (next: number) => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    p.set("by", by);
+    if (next > 1) p.set("page", String(next));
+    router.push(`/search?${p.toString()}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   return (
     <div className="pt-6">
       <div className="rounded-3xl bg-gradient-to-r from-purple-800 via-purple-700 to-purple-900 p-6 text-white sm:p-8">
         <h1 className="text-2xl font-bold sm:text-3xl">
-          ผลค้นหา {q ? `"${q}"` : ""} {loading ? "…" : `(${items.length})`}
+          ผลค้นหา {q ? `"${q}"` : ""} {loading ? "…" : `(${total})`}
         </h1>
         <p className="mt-1 text-sm text-purple-100">
           เลือกขอบเขตการค้นหา: ชื่อสินค้า หรือรายละเอียดเพิ่มเติม
@@ -110,6 +125,8 @@ function SearchInner() {
           ))}
         </div>
       )}
+
+      {!loading && <Pager page={Math.min(page, totalPages)} totalPages={totalPages} onGo={go} />}
     </div>
   );
 }

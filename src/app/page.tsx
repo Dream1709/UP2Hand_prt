@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import FeedCard from "@/components/FeedCard";
+import Pager from "@/components/Pager";
 import { createClient } from "@/lib/supabase/client";
-import { isSupabaseConfigured, type Item } from "@/lib/types";
+import { PAGE_SIZE, isSupabaseConfigured, parsePage, type Item } from "@/lib/types";
 
-export default function Home() {
+function HomeInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const page = parsePage(searchParams.get("page"));
   const [items, setItems] = useState<Item[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const noBackend = !isSupabaseConfigured;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -16,21 +23,31 @@ export default function Home() {
     const fetchItems = async () => {
       setLoading(true);
       const supabase = createClient();
-      const { data } = await supabase
+      const from = (page - 1) * PAGE_SIZE;
+      const { data, count } = await supabase
         .from("item")
-        .select("*, member:member_id(member_id,name,email,avatar_url,role,is_banned,created_at), images:item_image(*)")
+        .select(
+          "*, member:member_id(member_id,name,email,avatar_url,role,is_banned,created_at), images:item_image(*)",
+          { count: "exact" },
+        )
         .eq("status", "available")
         .order("created_at", { ascending: false })
-        .limit(60);
+        .range(from, from + PAGE_SIZE - 1);
       if (cancelled) return;
       setItems(((data ?? []) as unknown as Item[]).filter(Boolean));
+      setTotal(count ?? 0);
       setLoading(false);
     };
     fetchItems();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [page]);
+
+  const go = (p: number) => {
+    router.push(p <= 1 ? "/" : `/?page=${p}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
     <div className="pt-6">
@@ -51,14 +68,14 @@ export default function Home() {
 
       <div className="mt-6 flex items-center justify-between">
         <h2 className="font-semibold">
-          สินค้าล่าสุด {loading ? "…" : `(${items.length})`}
+          สินค้าล่าสุด {loading ? "…" : `(${total})`}
         </h2>
         <span className="text-xs text-stone-500">เรียงใหม่ → เก่า · ไม่ปิดกั้น</span>
       </div>
 
       {items.length === 0 && !loading ? (
         <div className="mt-6 rounded-2xl border bg-white p-10 text-center text-stone-500">
-          ยังไม่มีสินค้า — เป็นคนแรกที่ลงขายเลย!
+          {page > 1 ? "หน้านี้ไม่มีสินค้าแล้ว" : "ยังไม่มีสินค้า — เป็นคนแรกที่ลงขายเลย!"}
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
@@ -67,6 +84,16 @@ export default function Home() {
           ))}
         </div>
       )}
+
+      {!loading && <Pager page={Math.min(page, totalPages)} totalPages={totalPages} onGo={go} />}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense>
+      <HomeInner />
+    </Suspense>
   );
 }

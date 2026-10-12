@@ -42,6 +42,15 @@ export const MAX_IMAGES = 5;
 export const MAX_FILE_MB = 5;
 export const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
+// จำนวนสินค้าต่อหน้า (ฟีด + ค้นหา) — เกินกว่านี้ให้เปลี่ยนหน้าถัดไป
+export const PAGE_SIZE = 60;
+
+/** แปลง ?page= เป็นเลขหน้า (กันค่าผิด: 0/ติดลบ/ตัวอักษร → 1) */
+export function parsePage(v: string | null): number {
+  const n = Number.parseInt(v ?? "", 10);
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
 export function formatPrice(price: number): string {
   if (Number(price) === 0) return "แจกฟรี";
   return `฿${Number(price).toLocaleString("th-TH")}`;
