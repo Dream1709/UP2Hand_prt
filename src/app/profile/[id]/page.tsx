@@ -29,6 +29,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [items, setItems] = useState<Item[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isMe, setIsMe] = useState(false);
+  const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -74,7 +75,18 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     } = await supabase.auth.getUser();
     const me = user?.id === id;
     setIsMe(me);
-    // เจ้าของดูโปรไฟล์ตัวเอง → เห็นของทุกสถานะ (RLS ให้สิทธิ์อยู่แล้ว)
+    // เช็ค role คนดู (admin เห็นประวัติขายทุกสถานะของทุกคนได้)
+    let admin = false;
+    if (user && !me) {
+      const { data: viewer } = await supabase
+        .from("member")
+        .select("role")
+        .eq("member_id", user.id)
+        .single();
+      admin = viewer?.role === "admin";
+    }
+    setViewerIsAdmin(admin);
+    // เจ้าของ + admin → เห็นของทุกสถานะ (RLS ให้สิทธิ์อยู่แล้ว)
     // คนอื่น/guest → เห็นเฉพาะของว่าง
     let itemQuery = supabase
       .from("item")
@@ -82,7 +94,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       .eq("member_id", id)
       .order("created_at", { ascending: false })
       .limit(20);
-    if (!me) itemQuery = itemQuery.eq("status", "available");
+    if (!me && !admin) itemQuery = itemQuery.eq("status", "available");
     const { data: it } = await itemQuery;
     setItems(((it ?? []) as unknown as Item[]));
     const { data: rv } = await supabase
@@ -194,9 +206,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       )}
 
       <h2 className="mt-6 font-semibold">
-        {isMe ? `สินค้าของฉัน (${items.length})` : `สินค้าที่กำลังขาย (${items.length})`}
+        {isMe
+          ? `สินค้าของฉัน (${items.length})`
+          : viewerIsAdmin
+            ? `ประวัติประกาศทั้งหมด (${items.length}) 🛡️`
+            : `สินค้าที่กำลังขาย (${items.length})`}
       </h2>
-      {isMe && items.length > 0 && (
+      {(isMe || viewerIsAdmin) && items.length > 0 && (
         <p className="mt-1 text-xs text-stone-500">
           ว่าง {countBy("available")} · ขายแล้ว {countBy("sold")}
           {countBy("suspended") > 0 && ` · ถูกระงับ ${countBy("suspended")}`}
