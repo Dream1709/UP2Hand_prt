@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -11,7 +12,8 @@ interface AdminItem {
   price: number;
   status: string;
   created_at: string;
-  member?: { name: string; email: string };
+  member_id: string;
+  member?: { member_id: string; name: string; email: string };
 }
 
 export default function AdminPage() {
@@ -47,7 +49,7 @@ export default function AdminPage() {
       setAllowed(true);
       const { data: it } = await supabase
         .from("item")
-        .select("item_id,title,price,status,created_at,member:member_id(name,email)")
+        .select("item_id,title,price,status,created_at,member_id,member:member_id(member_id,name,email)")
         .order("created_at", { ascending: false })
         .limit(100);
       setItems((it ?? []) as unknown as AdminItem[]);
@@ -65,7 +67,7 @@ export default function AdminPage() {
     const supabase = createClient();
     const { data: it } = await supabase
       .from("item")
-      .select("item_id,title,price,status,created_at,member:member_id(name,email)")
+      .select("item_id,title,price,status,created_at,member_id,member:member_id(member_id,name,email)")
       .order("created_at", { ascending: false })
       .limit(100);
     setItems((it ?? []) as unknown as AdminItem[]);
@@ -135,8 +137,18 @@ export default function AdminPage() {
             <tbody>
               {items.map((it) => (
                 <tr key={it.item_id} className="border-t">
-                  <td className="p-3"><p className="font-semibold">{it.title}</p><p className="text-xs text-stone-400">{timeAgo(it.created_at)}</p></td>
-                  <td className="p-3 text-xs">{it.member?.name}<br />{it.member?.email}</td>
+                  <td className="p-3">
+                    <Link href={`/items/${it.item_id}`} className="font-semibold text-purple-800 hover:underline">
+                      {it.title} →
+                    </Link>
+                    <p className="text-xs text-stone-400">{timeAgo(it.created_at)}</p>
+                  </td>
+                  <td className="p-3 text-xs">
+                    <Link href={`/profile/${it.member?.member_id ?? it.member_id}`} className="font-semibold text-purple-800 hover:underline">
+                      {it.member?.name}
+                    </Link>
+                    <br />{it.member?.email}
+                  </td>
                   <td className="p-3"><span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs">{it.status}</span></td>
                   <td className="p-3">
                     <div className="flex flex-wrap gap-1">
@@ -162,7 +174,12 @@ export default function AdminPage() {
             <tbody>
               {users.map((u) => (
                 <tr key={u.member_id} className="border-t">
-                  <td className="p-3"><p className="font-semibold">{u.name}</p><p className="text-xs text-stone-400">{u.email}</p></td>
+                  <td className="p-3">
+                    <Link href={`/profile/${u.member_id}`} className="font-semibold text-purple-800 hover:underline">
+                      {u.name} →
+                    </Link>
+                    <p className="text-xs text-stone-400">{u.email}</p>
+                  </td>
                   <td className="p-3 text-xs">{u.role}</td>
                   <td className="p-3">{u.is_banned ? <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">โดนแบน</span> : <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">ปกติ</span>}</td>
                   <td className="p-3">
