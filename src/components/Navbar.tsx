@@ -198,6 +198,7 @@ export default function Navbar() {
   const [myId, setMyId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const [prevEmail, setPrevEmail] = useState<string | null>(null);
   // เปลี่ยนบัญชี / logout → รีเซ็ตตัวเลข (render-phase pattern)
   if (email !== prevEmail) {
@@ -362,7 +363,7 @@ export default function Navbar() {
                 </span>
               )}
               <button
-                onClick={logout}
+                onClick={() => setConfirmLogout(true)}
                 className="rounded-full border px-4 py-2 text-sm hover:bg-stone-100"
               >
                 ออกจากระบบ
@@ -383,6 +384,46 @@ export default function Navbar() {
           <NavSearch key={`${pathname}-m`} mobile />
         </Suspense>
       </div>
+
+      {confirmLogout && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setConfirmLogout(false)}
+          onKeyDown={(e) => e.key === "Escape" && setConfirmLogout(false)}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="ยืนยันออกจากระบบ"
+            className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-4xl">👋</p>
+            <h2 className="mt-2 text-lg font-bold">ออกจากระบบ?</h2>
+            <p className="mt-1 text-sm text-stone-500">
+              ออกจากระบบบัญชี {email} ใช่หรือไม่
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                autoFocus
+                onClick={() => setConfirmLogout(false)}
+                className="flex-1 rounded-full border px-4 py-2.5 text-sm font-semibold hover:bg-stone-100"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmLogout(false);
+                  void logout();
+                }}
+                className="flex-1 rounded-full bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                ยืนยัน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
