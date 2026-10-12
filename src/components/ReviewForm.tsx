@@ -32,6 +32,18 @@ export default function ReviewForm({
       setSaving(false);
       return;
     }
+    // กันรีวิวซ้ำ: เช็กก่อนส่ง (DB มี UNIQUE สำรองอีกชั้น)
+    const { data: dup } = await supabase
+      .from("review")
+      .select("review_id")
+      .eq("reviewer_id", user.id)
+      .eq("reviewee_id", revieweeId)
+      .maybeSingle();
+    if (dup) {
+      setErr("คุณได้ให้คะแนนผู้ใช้คนนี้ไปแล้ว");
+      setSaving(false);
+      return;
+    }
     const { error } = await supabase.from("review").insert({
       rating,
       comment: comment.trim(),
@@ -40,7 +52,12 @@ export default function ReviewForm({
     });
     setSaving(false);
     if (error) {
-      setErr(error.message);
+      // ชน UNIQUE ที่ DB (เช่น กดส่งพร้อมกัน 2 ครั้ง)
+      if (error.code === "23505") {
+        setErr("คุณได้ให้คะแนนผู้ใช้คนนี้ไปแล้ว");
+      } else {
+        setErr(error.message);
+      }
       return;
     }
     setRating(0);

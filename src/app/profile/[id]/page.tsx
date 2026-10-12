@@ -29,6 +29,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [items, setItems] = useState<Item[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isMe, setIsMe] = useState(false);
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarErr, setAvatarErr] = useState<string | null>(null);
@@ -91,6 +92,18 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       .order("created_at", { ascending: false })
       .limit(30);
     setReviews(((rv ?? []) as unknown as Review[]));
+    // ฉันเคยรีวิวคนนี้แล้วหรือยัง → ซ่อนฟอร์มกันรีวิวซ้ำ
+    if (user && !me) {
+      const { data: mine } = await supabase
+        .from("review")
+        .select("review_id")
+        .eq("reviewer_id", user.id)
+        .eq("reviewee_id", id)
+        .maybeSingle();
+      setAlreadyReviewed(!!mine);
+    } else {
+      setAlreadyReviewed(false);
+    }
     setLoading(false);
   }, [id]);
 
@@ -168,7 +181,17 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         </div>
       </div>
 
-      {!isMe && <div className="mt-4"><ReviewForm revieweeId={id} onDone={load} /></div>}
+      {!isMe && (
+        <div className="mt-4">
+          {alreadyReviewed ? (
+            <p className="rounded-2xl border bg-stone-50 p-4 text-center text-sm text-stone-500">
+              คุณได้ให้คะแนนผู้ใช้คนนี้ไปแล้ว
+            </p>
+          ) : (
+            <ReviewForm revieweeId={id} onDone={load} />
+          )}
+        </div>
+      )}
 
       <h2 className="mt-6 font-semibold">
         {isMe ? `สินค้าของฉัน (${items.length})` : `สินค้าที่กำลังขาย (${items.length})`}
