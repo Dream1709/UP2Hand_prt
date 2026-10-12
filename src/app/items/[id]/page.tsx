@@ -12,6 +12,7 @@ export default function ItemDetail({ params }: { params: Promise<{ id: string }>
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [photo, setPhoto] = useState(0);
 
   useEffect(() => {
     const load = async () => {
@@ -50,19 +51,63 @@ export default function ItemDetail({ params }: { params: Promise<{ id: string }>
   return (
     <div className="grid gap-6 pt-6 md:grid-cols-2">
       <div className="overflow-hidden rounded-3xl border bg-white">
-        {item.images?.[0]?.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.images[0].image_url} alt={item.title} className="aspect-square w-full object-cover" />
+        {(item.images?.length ?? 0) > 0 ? (
+          <>
+            <div className="relative bg-stone-100">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                key={item.images![Math.min(photo, item.images!.length - 1)].image_id}
+                src={item.images![Math.min(photo, item.images!.length - 1)].image_url}
+                alt={item.title}
+                className="aspect-square w-full object-cover"
+              />
+              {item.images!.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="รูปก่อนหน้า"
+                    onClick={() => setPhoto((p) => (p - 1 + item.images!.length) % item.images!.length)}
+                    className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-lg font-bold text-white hover:bg-black/70"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="รูปถัดไป"
+                    onClick={() => setPhoto((p) => (p + 1) % item.images!.length)}
+                    className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-lg font-bold text-white hover:bg-black/70"
+                  >
+                    ›
+                  </button>
+                  <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2.5 py-0.5 text-xs font-semibold text-white">
+                    {Math.min(photo, item.images!.length - 1) + 1}/{item.images!.length}
+                  </span>
+                </>
+              )}
+            </div>
+            {item.images!.length > 1 && (
+              <div className="grid grid-cols-5 gap-2 p-3">
+                {item.images!.map((im, i) => (
+                  <button
+                    key={im.image_id}
+                    type="button"
+                    onClick={() => setPhoto(i)}
+                    aria-label={`ดูรูปที่ ${i + 1}`}
+                    className={`aspect-square overflow-hidden rounded-xl border-2 ${
+                      i === Math.min(photo, item.images!.length - 1)
+                        ? "border-purple-600"
+                        : "border-transparent opacity-70 hover:opacity-100"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={im.image_url} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex aspect-square items-center justify-center bg-stone-100 text-8xl">📦</div>
-        )}
-        {(item.images?.length ?? 0) > 1 && (
-          <div className="grid grid-cols-5 gap-2 p-3">
-            {item.images!.slice(1).map((im) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={im.image_id} src={im.image_url} alt="" className="aspect-square rounded-xl object-cover" />
-            ))}
-          </div>
         )}
       </div>
 
